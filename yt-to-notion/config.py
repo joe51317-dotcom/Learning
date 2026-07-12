@@ -8,7 +8,7 @@ load_dotenv(BASE_DIR / ".env")
 
 # Gemini（Free Tier）
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = "gemini-2.0-flash"  # 免費額度：15 RPM / 1500 RPD
+GEMINI_MODEL = "gemini-2.5-flash-lite"  # gemini-2.0-flash 已於 2026 停用；改用 2.5 flash-lite（免費額度更寬、更快）
 
 # Notion
 NOTION_API_KEY = os.getenv("NOTION_API_KEY", "")

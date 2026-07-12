@@ -6,9 +6,9 @@ import argparse
 import time
 from datetime import datetime, timezone
 
-# Windows UTF-8 輸出
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
+# Windows UTF-8 輸出（line_buffering=True 讓 cron.log 即時看得到進度，不然整批跑完才會 flush）
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", line_buffering=True)
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", line_buffering=True)
 
 import config
 from monitor import get_channels_from_notion, check_new_videos, load_processed, save_processed
