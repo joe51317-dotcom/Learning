@@ -63,6 +63,11 @@ def main():
     parser = argparse.ArgumentParser(description="YouTube → Notion 文章系統")
     parser.add_argument("--dry-run", action="store_true", help="只偵測不寫入")
     parser.add_argument("--verbose", "-v", action="store_true", help="顯示詳細資訊")
+    parser.add_argument(
+        "--only",
+        default="",
+        help="只處理名稱含指定關鍵字的頻道（逗號分隔、不分大小寫），例：--only \"Nick Theriot,Ben Heath\"",
+    )
     args = parser.parse_args()
 
     # 檢查必要設定
@@ -101,6 +106,15 @@ def main():
         return
 
     print(f"  找到 {len(channels)} 個頻道")
+
+    # --only：只保留名稱含任一關鍵字的頻道
+    if args.only:
+        keywords = [k.strip().lower() for k in args.only.split(",") if k.strip()]
+        channels = [c for c in channels if any(k in c["name"].lower() for k in keywords)]
+        print(f"  --only 篩選後剩 {len(channels)} 個頻道: {', '.join(c['name'] for c in channels)}")
+        if not channels:
+            print("  沒有符合 --only 條件的頻道")
+            return
 
     # 載入已處理紀錄
     processed = load_processed()
