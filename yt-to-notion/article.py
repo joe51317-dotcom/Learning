@@ -1,6 +1,7 @@
-"""使用 Gemini（Free Tier）將英文逐字稿轉換為繁體中文文章。"""
+"""使用 Gemini 將英文逐字稿轉換為繁體中文文章。"""
 
 import json
+import time
 from google import genai
 from google.genai import types
 
@@ -123,31 +124,41 @@ def generate_article(
         min_chars=min_chars,
     )
 
-    response_text = ""
-    try:
-        response = client.models.generate_content(
-            model=config.GEMINI_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.5,
-                max_output_tokens=24576,
-                # 強制 JSON 輸出，讓偏弱模型的回應更好解析
-                response_mime_type="application/json",
-            ),
-        )
+    # 暫時性錯誤（503 高負載、429 限流、500）自動重試，指數退避
+    gen_config = types.GenerateContentConfig(
+        temperature=0.5,
+        max_output_tokens=24576,
+        # 強制 JSON 輸出，讓偏弱模型的回應更好解析
+        response_mime_type="application/json",
+    )
+    max_retries = 4
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=config.GEMINI_MODEL,
+                contents=prompt,
+                config=gen_config,
+            )
 
-        response_text = response.text.strip()
-        article = _parse_response(response_text)
-        if article:
-            return article
+            response_text = response.text.strip()
+            article = _parse_response(response_text)
+            if article:
+                return article
 
-        # 所有解析都失敗，將整段回應當作純文字正文
-        return {
-            "title": f"[整理] {video_title}",
-            "summary": "",
-            "body": response_text,
-            "tags": [],
-        }
-    except Exception as e:
-        print(f"  ✗ Gemini 生成失敗: {e}")
-        return None
+            # 所有解析都失敗，將整段回應當作純文字正文
+            return {
+                "title": f"[整理] {video_title}",
+                "summary": "",
+                "body": response_text,
+                "tags": [],
+            }
+        except Exception as e:
+            msg = str(e)
+            transient = any(code in msg for code in ("503", "429", "500", "UNAVAILABLE", "RESOURCE_EXHAUSTED"))
+            if transient and attempt < max_retries - 1:
+                wait = 5 * (2 ** attempt)  # 5, 10, 20 秒
+                print(f"  ⏳ Gemini 暫時性錯誤（第 {attempt + 1} 次），{wait} 秒後重試...")
+                time.sleep(wait)
+                continue
+            print(f"  ✗ Gemini 生成失敗: {e}")
+            return None
