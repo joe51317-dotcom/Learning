@@ -132,7 +132,7 @@ def main():
                     save_processed(processed)
 
                 # 間隔避免觸發 YouTube IP 封鎖和 Gemini 速率限制
-                time.sleep(20)
+                time.sleep(45)
 
             except Exception as e:
                 print(f"  ✗ 處理失敗: {e}")

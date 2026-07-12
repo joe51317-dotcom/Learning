@@ -2,9 +2,10 @@
 
 from youtube_transcript_api import YouTubeTranscriptApi
 
+from transcript_ytdlp import fetch_transcript_ytdlp
 
-def fetch_transcript(video_id: str) -> str | None:
-    """取得英文逐字稿，回傳完整文字。無字幕時回傳 None。"""
+
+def _fetch_via_transcript_api(video_id: str) -> str | None:
     ytt = YouTubeTranscriptApi()
 
     try:
@@ -29,3 +30,15 @@ def fetch_transcript(video_id: str) -> str | None:
         pass
 
     return None
+
+
+def fetch_transcript(video_id: str) -> str | None:
+    """取得英文逐字稿，回傳完整文字。無字幕時回傳 None。
+
+    youtube-transcript-api 在批次連續請求時容易被 YouTube 暫時擋下，
+    失敗時改用 yt-dlp 重試一次（走不同的請求路徑）。
+    """
+    text = _fetch_via_transcript_api(video_id)
+    if text:
+        return text
+    return fetch_transcript_ytdlp(video_id)
