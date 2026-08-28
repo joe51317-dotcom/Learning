@@ -1,6 +1,7 @@
 """從 Notion 讀取追蹤頻道，透過 YouTube RSS 偵測新影片。"""
 
 import json
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime
@@ -78,16 +79,36 @@ def get_channels_from_notion() -> list[dict]:
     return channels
 
 
-def fetch_rss_videos(channel_id: str) -> list[dict]:
-    """從 YouTube RSS 取得頻道最新影片（最多 15 支）。"""
-    url = YOUTUBE_RSS.format(channel_id)
-    req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+def fetch_rss_videos(channel_id: str, attempts: int = 10) -> list[dict]:
+    """從 YouTube RSS 取得頻道最新影片（最多 15 支）。
 
-    try:
-        with urlopen(req, timeout=15) as resp:
-            xml_data = resp.read()
-    except Exception as e:
-        print(f"  ✗ RSS 取得失敗: {e}")
+    2026-08-28：這個端點會對「完全正確」的 channel_id 隨機回 404 或 500——
+    同一個網址連打六次可以拿到 200/404/500 混合的結果，成功率隨時間在
+    兩成到五成之間浮動。404 特別會騙人（看起來像頻道被刪了），但幾秒後
+    同一支就回 200，而且頻道頁 /channel/<id> 從頭到尾都是 200。
+    換 User-Agent 沒有用，不是我們被擋，是端點自己不穩。
+
+    所以這裡一定要重試，而且 sleep 要拉長：好壞是一個時間窗一個時間窗來的，
+    連著快打只是在同一個壞窗裡多撞幾次。單次失敗不代表頻道不見了。
+    """
+    url = YOUTUBE_RSS.format(channel_id)
+    xml_data = None
+    last_err = None
+
+    for i in range(attempts):
+        req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        try:
+            with urlopen(req, timeout=15) as resp:
+                xml_data = resp.read()
+            break
+        except Exception as e:
+            last_err = e
+            if i < attempts - 1:
+                time.sleep(min(5 * (i + 1), 25))
+
+    if xml_data is None:
+        print(f"  ✗ RSS 取得失敗（重試 {attempts} 次都不成，"
+              f"多半是 YouTube 端點當下整段不穩、不是頻道消失）: {last_err}")
         return []
 
     root = ET.fromstring(xml_data)
